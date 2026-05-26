@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BREAKOUT // MATRIX</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+  }
+  #ui {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 8px;
+    font-size: 0.65rem;
+    color: #555;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  #ui b { color: #ccc; }
+  #gameCanvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+  #message {
+    margin-top: 10px;
+    font-size: 0.65rem;
+    letter-spacing: 5px;
+    color: #fff;
+    min-height: 18px;
+    text-transform: uppercase;
+  }
+  #restartBtn {
+    margin-top: 10px;
+    padding: 5px 22px;
+    background: transparent;
+    color: #888;
+    border: 1px solid #444;
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 4px;
+    cursor: pointer;
+    display: none;
+    text-transform: uppercase;
+  }
+  #restartBtn:hover { color: #fff; border-color: #fff; }
+  #hint { margin-top: 6px; font-size: 0.6rem; color: #333; letter-spacing: 3px; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <span>SCORE <b id="score">000</b></span>
+  <span>LVL <b id="level">01</b></span>
+  <span>LIVES <b id="lives">■■■</b></span>
+</div>
+<canvas id="gameCanvas" width="480" height="520"></canvas>
+<div id="message"></div>
+<button id="restartBtn" onclick="restartGame()">[ RESTART ]</button>
+<div id="hint">← → or mouse</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ── SYMBOL SETS (like the reference: ⊙ □ × + \ ·) ──
+const SYMBOLS = ['⊙','□','×','+','\','·','○','◎','✕'];
+const CELL = 8; // pixel grid cell size
+
+// Block grid
+const COLS = 13, ROWS = 7;
+const BW = 34, BH = 12, BPADX = 2, BPADY = 3;
+const OX = (480 - (COLS*(BW+BPADX) - BPADX)) / 2;
+const OY = 32;
+
+const TRAIL = 22;
+
+let ball, paddle, blocks, score, lives, level, gameOver, won, animId;
+let keys = {}, trail = [];
+
+// ── Each block has a symbol pattern drawn inside ──
+function randSym() { return SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)]; }
+
+function initGame() {
+  score=0; lives=3; level=1; gameOver=false; won=false; trail=[];
+  document.getElementById('message').textContent='';
+  document.getElementById('restartBtn').style.display='none';
+  initLevel(); updateHUD();
+}
+
+function initLevel() {
+  paddle={ x:canvas.width/2-44, y:canvas.height-20, w:88, h:5 };
+  const spd = 4.8 + level*0.65;
+  ball={ x:canvas.width/2, y:canvas.height-55, r:5,
+         dx:(Math.random()>0.5?1:-1)*spd, dy:-spd };
+  trail=[];
+  blocks=[];
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      // density: more symbols closer to center
+      const dist = Math.abs(c - COLS/2) + Math.abs(r - ROWS/2);
+      const density = Math.max(1, 5 - Math.floor(dist/2));
+      // shade: lighter at top (like reference bright clusters)
+      const bright = r < 2 ? 230 : r < 4 ? 180 : 130;
+      blocks.push({
+        x: OX + c*(BW+BPADX),
+        y: OY + r*(BH+BPADY),
+        w: BW, h: BH,
+        alive: true,
+        bright,
+        syms: Array.from({length: density}, randSym),
+        pts: (ROWS-r)*10
+      });
+    }
+  }
+}
+
+function updateHUD(){
+  document.getElementById('score').textContent=String(score).padStart(3,'0');
+  document.getElementById('level').textContent=String(level).padStart(2,'0');
+  const l=['■■■','■■□','■□□','□□□'][3-Math.max(0,lives)]||'□□□';
+  document.getElementById('lives').textContent=l;
+}
+
+// ── Draw a block with symbol pattern ──
+function drawBlock(b){
+  if(!b.alive) return;
+  const c = b.bright;
+  ctx.fillStyle=`rgb(${c},${c},${c})`;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+
+  // 1px top/left highlight
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fillRect(b.x, b.y, b.w, 1);
+  ctx.fillRect(b.x, b.y, 1, b.h);
+
+  // 1px bottom/right shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.fillRect(b.x, b.y+b.h-1, b.w, 1);
+  ctx.fillRect(b.x+b.w-1, b.y, 1, b.h);
+
+  // symbols inside block
+  ctx.font = 'bold 5px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(0,0,0,${c>180 ? 0.35 : 0.55})`;
+  const total = b.syms.length;
+  for(let i=0;i<total;i++){
+    const sx = b.x + 4 + (i % 4) * 7;
+    const sy = b.y + (b.h/2) + (i >= 4 ? 4 : 0);
+    if(sx < b.x + b.w - 3) ctx.fillText(b.syms[i], sx, sy);
+  }
+}
+
+// ── Background: scattered symbol field ──
+let bgSyms = null;
+function buildBg(){
+  bgSyms=[];
+  for(let x=6;x<canvas.width;x+=10){
+    for(let y=6;y<canvas.height;y+=10){
+      if(Math.random()<0.28){
+        bgSyms.push({
+          x, y,
+          s: SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)],
+          a: 0.03 + Math.random()*0.07,
+          sz: Math.random()<0.15 ? 7 : 5
+        });
+      }
+    }
+  }
+}
+
+function drawBg(){
+  ctx.fillStyle='#0d0d0d';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // random white blocks (large geometric shapes like reference)
+  ctx.fillStyle='rgba(255,255,255,0.03)';
+  ctx.fillRect(0, canvas.height*0.6, canvas.width*0.3, canvas.height*0.18);
+  ctx.fillRect(canvas.width*0.65, 0, canvas.width*0.35, canvas.height*0.22);
+
+  if(!bgSyms) buildBg();
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const s of bgSyms){
+    ctx.font=`${s.sz}px Courier New`;
+    ctx.fillStyle=`rgba(200,200,200,${s.a})`;
+    ctx.fillText(s.s, s.x, s.y);
+  }
+}
+
+// ── Paddle ──
+function drawPaddle(){
+  const p=paddle;
+  // main bar
+  ctx.fillStyle='#aaa';
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.fillRect(p.x, p.y, p.w, 1);
+  // symbol tick marks
+  ctx.font='4px Courier New';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  for(let i=6;i<p.w-6;i+=8) ctx.fillText('|',p.x+i, p.y+2);
+  // end caps as ×
+  ctx.font='bold 6px Courier New';
+  ctx.fillStyle='#fff';
+  ctx.fillText('×', p.x+4, p.y+2);
+  ctx.fillText('×', p.x+p.w-4, p.y+2);
+}
+
+// ── Ball + comet tail ──
+function drawBallTrail(){
+  const len=trail.length;
+  for(let i=0;i<len;i++){
+    const t=trail[i];
+    const prog=(i/len);
+    const sz=Math.max(1, Math.round(prog*ball.r*2.2));
+    const sym=SYMBOLS[i%SYMBOLS.length];
+    ctx.font=`${sz+4}px Courier New`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=`rgba(200,200,200,${prog*0.6})`;
+    ctx.fillText(sym, Math.round(t.x), Math.round(t.y));
+  }
+
+  // ball as pixel square grid pattern ⊙
+  const bx=Math.round(ball.x), by=Math.round(ball.y), r=ball.r;
+  // outer glow
+  ctx.fillStyle='rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.arc(bx,by,r+4,0,Math.PI*2); ctx.fill();
+
+  // pixelated ball (draw as circle of 1px squares)
+  for(let py=-r;py<=r;py++){
+    for(let px=-r;px<=r;px++){
+      if(px*px+py*py<=r*r){
+        const isEdge=px*px+py*py>(r-1.5)*(r-1.5);
+        ctx.fillStyle=isEdge?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.95)';
+        ctx.fillRect(bx+px,by+py,1,1);
+      }
+    }
+  }
+
+  // center symbol
+  ctx.font='bold 6px Courier New';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillText('⊙',bx,by);
+}
+
+// ── Physics ──
+function movePaddle(){
+  if(keys['ArrowLeft']||keys['a']) paddle.x-=7;
+  if(keys['ArrowRight']||keys['d']) paddle.x+=7;
+  paddle.x=Math.max(0,Math.min(canvas.width-paddle.w,paddle.x));
+}
+
+function moveBall(){
+  trail.push({x:ball.x,y:ball.y});
+  if(trail.length>TRAIL) trail.shift();
+
+  ball.x+=ball.dx; ball.y+=ball.dy;
+
+  if(ball.x-ball.r<0){ball.x=ball.r;ball.dx=Math.abs(ball.dx);}
+  if(ball.x+ball.r>canvas.width){ball.x=canvas.width-ball.r;ball.dx=-Math.abs(ball.dx);}
+  if(ball.y-ball.r<0){ball.y=ball.r;ball.dy=Math.abs(ball.dy);}
+
+  const p=paddle;
+  if(ball.dy>0&&ball.x>p.x&&ball.x<p.x+p.w&&
+     ball.y+ball.r>=p.y&&ball.y+ball.r<=p.y+p.h+8){
+    ball.y=p.y-ball.r;
+    const hit=(ball.x-(p.x+p.w/2))/(p.w/2);
+    ball.dx=hit*6.5;
+    ball.dy=-Math.abs(ball.dy);
+    trail=[];
+  }
+
+  for(let b of blocks){
+    if(!b.alive) continue;
+    if(ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&
+       ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){
+      b.alive=false; score+=b.pts; updateHUD();
+      const ot=ball.y+ball.r-b.y, ob=b.y+b.h-(ball.y-ball.r);
+      const ol=ball.x+ball.r-b.x, or2=b.x+b.w-(ball.x-ball.r);
+      if(Math.min(ot,ob)<Math.min(ol,or2)) ball.dy*=-1; else ball.dx*=-1;
+      break;
+    }
+  }
+
+  if(ball.y-ball.r>canvas.height){
+    lives--; updateHUD(); trail=[];
+    if(lives<=0){
+      gameOver=true;
+      document.getElementById('message').textContent='[ SYSTEM FAILURE ]';
+      document.getElementById('restartBtn').style.display='inline-block';
+    } else {
+      const spd=4.8+level*0.65;
+      ball.x=canvas.width/2; ball.y=canvas.height-55;
+      ball.dx=(Math.random()>0.5?1:-1)*spd; ball.dy=-spd;
+      paddle.x=canvas.width/2-paddle.w/2;
+    }
+  }
+
+  if(blocks.every(b=>!b.alive)){
+    level++;
+    if(level>3){
+      won=true;
+      document.getElementById('message').textContent='[ VICTORY // SCORE: '+score+' ]';
+      document.getElementById('restartBtn').style.display='inline-block';
+    } else {
+      document.getElementById('message').textContent='[ LEVEL '+level+' LOADED ]';
+      setTimeout(()=>document.getElementById('message').textContent='',1800);
+      initLevel(); updateHUD();
+    }
+  }
+}
+
+// ── Game loop ──
+function gameLoop(){
+  drawBg();
+  if(!gameOver&&!won){movePaddle();moveBall();}
+  blocks.forEach(drawBlock);
+  drawPaddle();
+  drawBallTrail();
+
+  // danger line
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
+  ctx.lineWidth=1; ctx.setLineDash([3,5]);
+  ctx.beginPath(); ctx.moveTo(0,canvas.height-2); ctx.lineTo(canvas.width,canvas.height-2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if(!gameOver&&!won) animId=requestAnimationFrame(gameLoop);
+}
+
+function restartGame(){
+  cancelAnimationFrame(animId); bgSyms=null; initGame(); gameLoop();
+}
+
+document.addEventListener('keydown',e=>keys[e.key]=true);
+document.addEventListener('keyup',e=>keys[e.key]=false);
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  paddle.x=(e.clientX-r.left)-paddle.w/2;
+  paddle.x=Math.max(0,Math.min(canvas.width-paddle.w,paddle.x));
+});
+
+initGame(); gameLoop();
+</script>
+</body>
+</html>
