@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BREAKOUT</title>
+  <title>BREAKOUT — Deutsch</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap');
 
@@ -71,8 +71,41 @@
       color: #A69B8D;
     }
 
+    #wordDisplay {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #3a3530;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      margin-bottom: 3px;
+    }
+
+    #wordDisplay .wtype {
+      font-size: 0.65rem;
+      font-weight: 400;
+      color: #C4B9AD;
+      margin-right: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      vertical-align: middle;
+    }
+
+    #wordTranslation {
+      font-size: 0.72rem;
+      color: #A69B8D;
+      margin-bottom: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    #wordExample {
+      font-size: 0.68rem;
+      color: #B8AFA6;
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+
     #bigScore {
-      font-size: 2.6rem;
+      font-size: 2.2rem;
       font-weight: 700;
       color: #3a3530;
       letter-spacing: -0.02em;
@@ -164,7 +197,7 @@
       }
 
       40% {
-        transform: scale(1.15);
+        transform: scale(1.12);
         color: #7a6e62
       }
 
@@ -176,19 +209,38 @@
     .score-flash {
       animation: scoreFlash 0.3s ease-out;
     }
+
+    @keyframes wordPop {
+      0% {
+        opacity: 0;
+        transform: translateY(5px)
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .word-pop {
+      animation: wordPop 0.4s ease-out;
+    }
   </style>
 </head>
 
 <body>
   <div id="card">
     <div id="header">
-      <div class="label">Breakout</div>
+      <div class="label">Breakout · Deutsch</div>
       <div id="tabs">
         <span>Best <b id="bestVal">0</b></span>
         <span>Lvl <b id="levelVal">1</b></span>
         <span class="active">Score <b id="scoreVal">0</b></span>
       </div>
     </div>
+    <div id="wordDisplay"><span class="wtype" id="wType"></span><span id="wWord"></span></div>
+    <div id="wordTranslation"></div>
+    <div id="wordExample"></div>
     <div id="bigScore">+<span id="bigScoreVal">000</span> <sup>pts</sup></div>
     <div class="divider"></div>
     <canvas id="gameCanvas" width="472" height="340"></canvas>
@@ -214,204 +266,245 @@
     const OY = 10;
     const GRAVITY = 0.18;
     const TRAIL = 20;
-    const T = 5; // stroke thickness in blocks
 
-    // ── HI — positioned in lower 2/3 of grid
-    function buildHISet() {
+    // Word types and their block colors
+    // adv=adverb, part=Partikel, konj=Konjunktion, adj=Adjektiv, phrase=Redewendung
+    const TYPE_COLORS = {
+      adv: '#7a9fc2',
+      part: '#c27a7a',
+      konj: '#7ab87a',
+      adj: '#b09fc2',
+      phrase: '#c2a87a',
+    };
+
+    // 100 words: adverbs, particles, conjunctions, adjectives — A2–B1
+    const WORDS = [
+      // ── Adverbien (adv)
+      { type: 'adv', word: 'TATSACHLICH', tr: 'справді / насправді', ex: 'Das ist tatsächlich wahr.' },
+      { type: 'adv', word: 'EIGENTLICH', tr: 'власне / насправді', ex: 'Was willst du eigentlich?' },
+      { type: 'adv', word: 'UNGEFAHR', tr: 'приблизно', ex: 'Es dauert ungefähr eine Stunde.' },
+      { type: 'adv', word: 'NORMALERWEISE', tr: 'зазвичай', ex: 'Normalerweise komme ich pünktlich.' },
+      { type: 'adv', word: 'MEISTENS', tr: 'найчастіше / здебільшого', ex: 'Ich esse meistens zu Hause.' },
+      { type: 'adv', word: 'MANCHMAL', tr: 'іноді', ex: 'Manchmal bin ich müde.' },
+      { type: 'adv', word: 'SELTEN', tr: 'рідко', ex: 'Er kommt selten zu spät.' },
+      { type: 'adv', word: 'SOFORT', tr: 'одразу / негайно', ex: 'Ich komme sofort!' },
+      { type: 'adv', word: 'PLOTZLICH', tr: 'раптово', ex: 'Plötzlich wurde es dunkel.' },
+      { type: 'adv', word: 'INZWISCHEN', tr: 'тим часом / тепер вже', ex: 'Inzwischen wohne ich in Berlin.' },
+      { type: 'adv', word: 'SEITDEM', tr: 'з того часу', ex: 'Seitdem habe ich ihn nicht gesehen.' },
+      { type: 'adv', word: 'VORHIN', tr: 'щойно / нещодавно', ex: 'Ich war vorhin beim Arzt.' },
+      { type: 'adv', word: 'NACHHER', tr: 'потім / після', ex: 'Wir reden nachher darüber.' },
+      { type: 'adv', word: 'UBRIGENS', tr: 'до речі', ex: 'Übrigens, morgen ist Montag.' },
+      { type: 'adv', word: 'TROTZDEM', tr: 'все одно / незважаючи', ex: 'Es regnet, trotzdem gehe ich.' },
+      { type: 'adv', word: 'DESHALB', tr: 'тому / через це', ex: 'Er ist krank, deshalb bleibt er.' },
+      { type: 'adv', word: 'DESWEGEN', tr: 'через це / тому', ex: 'Deswegen bin ich hier.' },
+      { type: 'adv', word: 'DENNOCH', tr: 'проте / все ж таки', ex: 'Es war schwer, dennoch hat er gewonnen.' },
+      { type: 'adv', word: 'ALLERDINGS', tr: 'однак / щоправда', ex: 'Es ist schön, allerdings teuer.' },
+      { type: 'adv', word: 'TATSACHLICH', tr: 'дійсно / фактично', ex: 'Das ist tatsächlich passiert.' },
+      { type: 'adv', word: 'JEDENFALLS', tr: 'у будь-якому разі', ex: 'Jedenfalls war es interessant.' },
+      { type: 'adv', word: 'MINDESTENS', tr: 'щонайменше', ex: 'Es dauert mindestens zwei Stunden.' },
+      { type: 'adv', word: 'WENIGSTENS', tr: 'принаймні', ex: 'Wenigstens hat es nicht geregnet.' },
+      { type: 'adv', word: 'ZIEMLICH', tr: 'досить / доволі', ex: 'Das Essen war ziemlich gut.' },
+      { type: 'adv', word: 'BESONDERS', tr: 'особливо', ex: 'Das gefällt mir besonders gut.' },
+      { type: 'adv', word: 'KAUM', tr: 'ледве / ледь', ex: 'Ich kann das kaum glauben.' },
+      { type: 'adv', word: 'FAST', tr: 'майже', ex: 'Ich bin fast fertig.' },
+      { type: 'adv', word: 'INSGESAMT', tr: 'загалом / всього', ex: 'Das kostet insgesamt 50 Euro.' },
+      { type: 'adv', word: 'DABEI', tr: 'при цьому / поруч', ex: 'Ich war dabei, als es passierte.' },
+      { type: 'adv', word: 'DAZU', tr: 'до цього / крім того', ex: 'Ich habe nichts dazu gesagt.' },
+      // ── Modalpartikeln (part)
+      { type: 'part', word: 'DOCH', tr: 'ж / але ж / таки', ex: 'Das weißt du doch!' },
+      { type: 'part', word: 'DENN', tr: 'же (у питаннях)', ex: 'Was machst du denn hier?' },
+      { type: 'part', word: 'MAL', tr: 'но / будь ласка', ex: 'Kannst du mal helfen?' },
+      { type: 'part', word: 'HALT', tr: 'ну от / так вже є', ex: 'Das ist halt so.' },
+      { type: 'part', word: 'EBEN', tr: 'саме / ну ось', ex: 'Das ist eben das Problem.' },
+      { type: 'part', word: 'JA', tr: 'ж / адже (підсилення)', ex: 'Das ist ja interessant!' },
+      { type: 'part', word: 'WOHL', tr: 'мабуть / мусить бути', ex: 'Er ist wohl krank.' },
+      { type: 'part', word: 'SCHON', tr: 'вже / та вже', ex: 'Das wird schon klappen.' },
+      { type: 'part', word: 'RUHIG', tr: 'спокійно / сміливо', ex: 'Du kannst ruhig gehen.' },
+      { type: 'part', word: 'BLOSS', tr: 'тільки / же', ex: 'Mach das bloß nicht!' },
+      { type: 'part', word: 'NUR', tr: 'тільки / лише', ex: 'Komm nur herein!' },
+      { type: 'part', word: 'ETWA', tr: 'невже / хіба', ex: 'Bist du etwa müde?' },
+      { type: 'part', word: 'SOGAR', tr: 'навіть', ex: 'Er spricht sogar Russisch.' },
+      { type: 'part', word: 'ZUMINDEST', tr: 'принаймні', ex: 'Zumindest hat er angerufen.' },
+      { type: 'part', word: 'IMMERHIN', tr: 'все ж таки', ex: 'Immerhin hat er es versucht.' },
+      // ── Konjunktionen (konj)
+      { type: 'konj', word: 'OBWOHL', tr: 'хоча / незважаючи', ex: 'Obwohl er müde war, arbeitete er.' },
+      { type: 'konj', word: 'WAHREND', tr: 'поки / тоді як', ex: 'Während ich koche, liest er.' },
+      { type: 'konj', word: 'NACHDEM', tr: 'після того як', ex: 'Nachdem er gegessen hatte, schlief er.' },
+      { type: 'konj', word: 'SOBALD', tr: 'щойно / як тільки', ex: 'Sobald er kommt, rufe ich an.' },
+      { type: 'konj', word: 'SOLANGE', tr: 'поки / доки', ex: 'Solange ich hier bin, bin ich glücklich.' },
+      { type: 'konj', word: 'DAMIT', tr: 'щоб (мета)', ex: 'Ich erkläre es, damit du verstehst.' },
+      { type: 'konj', word: 'FALLS', tr: 'якщо / у разі якщо', ex: 'Falls du kommst, ruf an.' },
+      { type: 'konj', word: 'SOFERN', tr: 'за умови що', ex: 'Sofern es klappt, fahren wir.' },
+      { type: 'konj', word: 'BEVOR', tr: 'перед тим як', ex: 'Bevor du gehst, sag mir Bescheid.' },
+      { type: 'konj', word: 'SEITDEM', tr: 'відтоді як', ex: 'Seitdem wir uns kennen, bin ich froh.' },
+      { type: 'konj', word: 'SODASS', tr: 'так що / тому що', ex: 'Er ist krank, sodass er bleibt.' },
+      { type: 'konj', word: 'ENTWEDER', tr: 'або... або', ex: 'Entweder kommst du, oder ich gehe.' },
+      { type: 'konj', word: 'WEDER', tr: 'ні... ні', ex: 'Das ist weder gut noch schlecht.' },
+      { type: 'konj', word: 'SONDERN', tr: 'а (після заперечення)', ex: 'Nicht ich, sondern er hat recht.' },
+      { type: 'konj', word: 'ZWAR', tr: 'хоча й / правда', ex: 'Das ist zwar teuer, aber gut.' },
+      // ── Adjektive (adj)
+      { type: 'adj', word: 'ZUFRIEDEN', tr: 'задоволений', ex: 'Ich bin damit zufrieden.' },
+      { type: 'adj', word: 'NEUGIERIG', tr: 'цікавий / допитливий', ex: 'Er ist sehr neugierig.' },
+      { type: 'adj', word: 'ZUVERLASSIG', tr: 'надійний', ex: 'Sie ist eine zuverlässige Kollegin.' },
+      { type: 'adj', word: 'ENTSPANNT', tr: 'розслаблений / спокійний', ex: 'Nach dem Urlaub bin ich entspannt.' },
+      { type: 'adj', word: 'AUFGEREGT', tr: 'схвильований', ex: 'Die Kinder sind ganz aufgeregt.' },
+      { type: 'adj', word: 'ENTTAUSCHT', tr: 'розчарований', ex: 'Ich bin enttäuscht von ihm.' },
+      { type: 'adj', word: 'STOLZ', tr: 'гордий', ex: 'Sie ist stolz auf ihren Sohn.' },
+      { type: 'adj', word: 'NERVOS', tr: 'нервовий', ex: 'Vor dem Test bin ich nervös.' },
+      { type: 'adj', word: 'GLEICHZEITIG', tr: 'одночасний / водночас', ex: 'Das kann ich nicht gleichzeitig.' },
+      { type: 'adj', word: 'PLOTZLICH', tr: 'раптовий', ex: 'Eine plötzliche Stille trat ein.' },
+      { type: 'adj', word: 'GEWOHNT', tr: 'звичний / звичний до', ex: 'Ich bin das gewohnt.' },
+      { type: 'adj', word: 'BESORGT', tr: 'стурбований', ex: 'Die Eltern sind besorgt.' },
+      { type: 'adj', word: 'ERSTAUNT', tr: 'здивований', ex: 'Ich bin erstaunt über die Nachricht.' },
+      { type: 'adj', word: 'SELBSTANDIG', tr: 'самостійний', ex: 'Sie arbeitet selbständig.' },
+      { type: 'adj', word: 'VERTRAUT', tr: 'знайомий / близький', ex: 'Das kommt mir vertraut vor.' },
+      // ── Adverb-Phrasen / Konnektoren (phrase)
+      { type: 'phrase', word: 'AUFJEDENFALL', tr: 'у будь-якому разі', ex: 'Auf jeden Fall komme ich.' },
+      { type: 'phrase', word: 'IMALLGEMEINEN', tr: 'загалом кажучи', ex: 'Im Allgemeinen ist es gut.' },
+      { type: 'phrase', word: 'ZUNACHST', tr: 'спочатку / передусім', ex: 'Zunächst müssen wir planen.' },
+      { type: 'phrase', word: 'SCHLIESSLICH', tr: 'зрештою / нарешті', ex: 'Schließlich haben wir es geschafft.' },
+      { type: 'phrase', word: 'INDERTAT', tr: 'справді / дійсно', ex: 'Das ist in der Tat schwierig.' },
+      { type: 'phrase', word: 'EINERSEITS', tr: 'з одного боку', ex: 'Einerseits ist es teuer.' },
+      { type: 'phrase', word: 'ANDERERSEITS', tr: 'з іншого боку', ex: 'Andererseits ist es praktisch.' },
+      { type: 'phrase', word: 'IMGRUNDE', tr: 'по суті / власне', ex: 'Im Grunde bin ich einverstanden.' },
+      { type: 'phrase', word: 'NEBENBEI', tr: 'між іншим / паралельно', ex: 'Nebenbei arbeite ich als Kellner.' },
+      { type: 'phrase', word: 'DEMENTSPRECHEND', tr: 'відповідно', ex: 'Dementsprechend handeln wir.' },
+      { type: 'phrase', word: 'UNVERZUGLICH', tr: 'негайно / без зволікань', ex: 'Bitte unverzüglich antworten.' },
+      { type: 'phrase', word: 'SOZUSAGEN', tr: 'так би мовити', ex: 'Er ist sozusagen mein Chef.' },
+      { type: 'phrase', word: 'BEZIEHUNGSWEISE', tr: 'або ж / точніше', ex: 'Morgen oder beziehungsweise übermorgen.' },
+      { type: 'phrase', word: 'MITUNTER', tr: 'інколи / часом', ex: 'Das passiert mitunter.' },
+      { type: 'phrase', word: 'KEINESFALLS', tr: 'жодним чином / аж ніяк', ex: 'Das darf keinesfalls passieren.' },
+      { type: 'phrase', word: 'GERADEZU', tr: 'прямо-таки / мало не', ex: 'Das ist geradezu unglaublich.' },
+      { type: 'phrase', word: 'IMMERWIEDER', tr: 'знову і знову', ex: 'Er macht immer wieder Fehler.' },
+      { type: 'phrase', word: 'ANSONSTENT', tr: 'інакше / а так', ex: 'Ansonsten läuft alles gut.' },
+      { type: 'phrase', word: 'VORAUSSICHTLICH', tr: 'очевидно / за все', ex: 'Er kommt voraussichtlich morgen.' },
+      { type: 'phrase', word: 'INWIEFERN', tr: 'якою мірою / наскільки', ex: 'Inwiefern hilft das?' },
+    ];
+
+    // ── 5×7 pixel font
+    const FONT5 = {
+      'A': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1]],
+      'B': [[1, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 0]],
+      'C': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'D': [[1, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 0]],
+      'E': [[1, 1, 1, 1, 1], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 1]],
+      'F': [[1, 1, 1, 1, 1], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
+      'G': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 0], [1, 0, 1, 1, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'H': [[1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1]],
+      'I': [[1, 1, 1, 1, 1], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [1, 1, 1, 1, 1]],
+      'J': [[0, 0, 0, 0, 1], [0, 0, 0, 0, 1], [0, 0, 0, 0, 1], [0, 0, 0, 0, 1], [0, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'K': [[1, 0, 0, 0, 1], [1, 0, 0, 1, 0], [1, 0, 1, 0, 0], [1, 1, 0, 0, 0], [1, 0, 1, 0, 0], [1, 0, 0, 1, 0], [1, 0, 0, 0, 1]],
+      'L': [[1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 1]],
+      'M': [[1, 0, 0, 0, 1], [1, 1, 0, 1, 1], [1, 0, 1, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1]],
+      'N': [[1, 0, 0, 0, 1], [1, 1, 0, 0, 1], [1, 0, 1, 0, 1], [1, 0, 0, 1, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1]],
+      'O': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'P': [[1, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
+      'Q': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 1, 0, 1], [1, 0, 0, 1, 0], [0, 1, 1, 0, 1]],
+      'R': [[1, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 0], [1, 0, 1, 0, 0], [1, 0, 0, 1, 0], [1, 0, 0, 0, 1]],
+      'S': [[0, 1, 1, 1, 0], [1, 0, 0, 0, 1], [1, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'T': [[1, 1, 1, 1, 1], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0]],
+      'U': [[1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 1, 1, 0]],
+      'V': [[1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 0, 1, 0], [0, 1, 0, 1, 0], [0, 0, 1, 0, 0]],
+      'W': [[1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 1, 0, 1], [1, 0, 1, 0, 1], [1, 1, 0, 1, 1], [1, 0, 0, 0, 1]],
+      'X': [[1, 0, 0, 0, 1], [0, 1, 0, 1, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 1, 0, 1, 0], [1, 0, 0, 0, 1]],
+      'Y': [[1, 0, 0, 0, 1], [0, 1, 0, 1, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0]],
+      'Z': [[1, 1, 1, 1, 1], [0, 0, 0, 1, 0], [0, 0, 1, 0, 0], [0, 1, 0, 0, 0], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 1]],
+    };
+
+    function calcT(word) {
+      const len = word.length;
+      const totalPixels = len * 5 + (len - 1);
+      for (let t = 4; t >= 1; t--) {
+        if (totalPixels * t <= COLS - 2) return t;
+      }
+      return 1;
+    }
+
+    function buildWordSet(wordObj) {
       const set = new Set();
-      const H_W = 2 * T + 5;
-      const H_H = 14;
-      const I_W = T + 6;
-      const GAP_LETTERS = 5;
-      const totalW = H_W + GAP_LETTERS + I_W;
-
+      const text = wordObj.word.toUpperCase();
+      const t = calcT(text);
+      const charW = 5, charH = 7;
+      const gap = Math.max(1, t);
+      const scaledCharW = charW * t;
+      const totalW = text.length * scaledCharW + (text.length - 1) * gap;
+      const totalH = charH * t;
       const startC = Math.floor((COLS - totalW) / 2);
-      // push letters to lower portion: start at row 4 (out of 18)
-      const startR = 4;
-
-      // H left vertical
-      for (let r = 0; r < H_H; r++)
-        for (let t = 0; t < T; t++)
-          set.add((startR + r) + ',' + (startC + t));
-      // H right vertical
-      for (let r = 0; r < H_H; r++)
-        for (let t = 0; t < T; t++)
-          set.add((startR + r) + ',' + (startC + H_W - T + t));
-      // H crossbar
-      const crossS = Math.floor((H_H - T) / 2);
-      for (let r = crossS; r < crossS + T; r++)
-        for (let c = 0; c < H_W; c++)
-          set.add((startR + r) + ',' + (startC + c));
-
-      // I
-      const iOff = startC + H_W + GAP_LETTERS;
-      for (let r = 0; r < T; r++)
-        for (let c = 0; c < I_W; c++)
-          set.add((startR + r) + ',' + (iOff + c));
-      for (let r = H_H - T; r < H_H; r++)
-        for (let c = 0; c < I_W; c++)
-          set.add((startR + r) + ',' + (iOff + c));
-      const stemOff = Math.floor((I_W - T) / 2);
-      for (let r = T; r < H_H - T; r++)
-        for (let t = 0; t < T; t++)
-          set.add((startR + r) + ',' + (iOff + stemOff + t));
-
+      const startR = Math.floor((ROWS - totalH) / 2) + 2;
+      for (let ci = 0; ci < text.length; ci++) {
+        const bitmap = FONT5[text[ci]];
+        if (!bitmap) continue;
+        const cOff = startC + ci * (scaledCharW + gap);
+        for (let py = 0; py < charH; py++) {
+          for (let px = 0; px < charW; px++) {
+            if (!bitmap[py][px]) continue;
+            for (let ty = 0; ty < t; ty++) for (let tx = 0; tx < t; tx++) {
+              const r = startR + py * t + ty;
+              const c = cOff + px * t + tx;
+              if (r >= 0 && r < ROWS && c >= 0 && c < COLS) set.add(r + ',' + c);
+            }
+          }
+        }
+      }
       return set;
     }
 
-    function loadBest() { return parseInt(localStorage.getItem('breakout_best_v2') || '0', 10); }
-    function saveBest(s) { if (s > loadBest()) localStorage.setItem('breakout_best_v2', String(s)); }
+    function loadBest() { return parseInt(localStorage.getItem('breakout_de_best') || '0', 10); }
+    function saveBest(s) { if (s > loadBest()) localStorage.setItem('breakout_de_best', String(s)); }
 
     let paddle, blocks, score, lives, level, gameOver, won, animId;
-    let keys = {};
+    let keys = {}, balls = [], debris = [];
 
-    // balls[] — all active balls (main + upgraded miniballs)
-    // { x, y, r, dx, dy, isMini, trail[] }
-    let balls = [];
-
-    // debris[] — falling square particles, can land on paddle → become miniball
-    // { x, y, dx, dy, sz, fromBlock: {pts} }
-    let debris = [];
-
-    // ── Spawn debris from a destroyed block
-    function spawnDebris(bx, by, bsz, pts) {
-      const cx = bx + bsz / 2;
-      const cy = by + bsz / 2;
-      const count = 4 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 * i / count) + (Math.random() - 0.5) * 0.6;
+    function spawnDebris(bx, by, bsz) {
+      const cx = bx + bsz / 2, cy = by + bsz / 2;
+      for (let i = 0; i < 5 + Math.floor(Math.random() * 3); i++) {
+        const angle = Math.PI * 2 * i / 6 + (Math.random() - 0.5) * 0.6;
         const spd = 1.0 + Math.random() * 2.5;
-        debris.push({
-          x: cx + (Math.random() - 0.5) * bsz,
-          y: cy + (Math.random() - 0.5) * bsz,
-          dx: Math.cos(angle) * spd,
-          dy: Math.sin(angle) * spd - 1.2,
-          sz: 2.0 + Math.random() * 2.0,
-          pts: pts // carried for potential miniball conversion
-        });
+        debris.push({ x: cx + (Math.random() - 0.5) * bsz, y: cy + (Math.random() - 0.5) * bsz, dx: Math.cos(angle) * spd, dy: Math.sin(angle) * spd - 1.2, sz: 2 + Math.random() * 2 });
       }
     }
 
-    // ── Convert a debris particle hitting the paddle into a miniball
+    function spawnDebrisInward(bx, by, bsz, tx, ty) {
+      const cx = bx + bsz / 2, cy = by + bsz / 2;
+      for (let i = 0; i < 5; i++) {
+        const ox = cx + (Math.random() - 0.5) * bsz * 2, oy = cy + (Math.random() - 0.5) * bsz * 2;
+        const dist = Math.sqrt((tx - ox) ** 2 + (ty - oy) ** 2) || 1;
+        const spd = 3 + Math.random() * 3;
+        debris.push({ x: ox, y: oy, dx: ((tx - ox) / dist) * spd, dy: ((ty - oy) / dist) * spd, sz: 1.5 + Math.random() * 1.5, _ttl: 12 });
+      }
+    }
+
     function debrisToMiniball(d) {
-      const spd = 3.5 + level * 0.4;
+      const spd = 3.5 + Math.min(level, 30) * 0.1;
       const hit = (d.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-      balls.push({
-        x: d.x,
-        y: paddle.y - 4,
-        r: 4,
-        dx: hit * spd * 0.8 + (Math.random() - 0.5),
-        dy: -(spd + Math.random()),
-        isMini: true,
-        trail: []
-      });
+      balls.push({ x: d.x, y: paddle.y - 4, r: 4, dx: hit * spd * 0.8 + (Math.random() - 0.5), dy: -(spd + Math.random()), isMini: true, trail: [] });
     }
 
-    function updateDebris() {
-      for (let i = debris.length - 1; i >= 0; i--) {
-        const d = debris[i];
-        d.dy += GRAVITY;
-        d.x += d.dx;
-        d.y += d.dy;
-
-        // Wall bounce
-        if (d.x < 0) { d.x = 0; d.dx = Math.abs(d.dx) * 0.5; }
-        if (d.x > W) { d.x = W; d.dx = -Math.abs(d.dx) * 0.5; }
-
-        // Paddle collision → become miniball
-        if (d.dy > 0 &&
-          d.x > paddle.x && d.x < paddle.x + paddle.w &&
-          d.y + d.sz / 2 >= paddle.y && d.y - d.sz / 2 <= paddle.y + paddle.h + 4) {
-          debrisToMiniball(d);
-          debris.splice(i, 1);
-          continue;
-        }
-
-        // Off bottom → vanish silently
-        if (d.y > H + 30) debris.splice(i, 1);
-      }
-    }
-
-    function drawDebris() {
-      ctx.fillStyle = '#3a3530';
-      for (const d of debris) {
-        const fade = d.y > H - 30 ? Math.max(0, 1 - (d.y - (H - 30)) / 35) : 1;
-        ctx.globalAlpha = fade;
-        const s = d.sz;
-        ctx.fillRect(Math.round(d.x - s / 2), Math.round(d.y - s / 2), Math.ceil(s), Math.ceil(s));
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    // ── Shared ball update (works for both normal and mini)
     function updateBall(b) {
       b.trail.push({ x: b.x, y: b.y });
       if (b.trail.length > TRAIL) b.trail.shift();
-
-      b.x += b.dx;
-      b.y += b.dy;
-
+      b.x += b.dx; b.y += b.dy;
       if (b.x - b.r < 0) { b.x = b.r; b.dx = Math.abs(b.dx); }
       if (b.x + b.r > W) { b.x = W - b.r; b.dx = -Math.abs(b.dx); }
       if (b.y - b.r < 0) { b.y = b.r; b.dy = Math.abs(b.dy); }
-
-      // Paddle — same physics for all balls
-      if (b.dy > 0 &&
-        b.x > paddle.x && b.x < paddle.x + paddle.w &&
-        b.y + b.r >= paddle.y && b.y + b.r <= paddle.y + paddle.h + 6) {
+      if (b.dy > 0 && b.x > paddle.x && b.x < paddle.x + paddle.w && b.y + b.r >= paddle.y && b.y + b.r <= paddle.y + paddle.h + 6) {
         b.y = paddle.y - b.r;
         const spd = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
         const hit = (b.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-        b.dx = hit * Math.max(spd, 3.0);
-        b.dy = -Math.abs(b.dy);
-        b.trail = [];
-        // mini → full on paddle hit
-        if (b.isMini) { b.isMini = false; }
+        b.dx = hit * Math.max(spd, 3.0); b.dy = -Math.abs(b.dy); b.trail = [];
+        if (b.isMini) b.isMini = false;
       }
-
-      // Block collision
       for (const bl of blocks) {
         if (!bl.alive) continue;
-        if (b.x + b.r > bl.x && b.x - b.r < bl.x + bl.w &&
-          b.y + b.r > bl.y && b.y - b.r < bl.y + bl.h) {
-          bl.alive = false;
-          score += bl.pts;
-          flashBigScore(); updateHUD();
-
-          if (b.isMini) {
-            // miniball hits block → absorb debris, become full ball
-            b.isMini = false;
-            // spawn debris flying INTO ball (inward burst)
-            spawnDebrisInward(bl.x, bl.y, bl.sz, b.x, b.y);
-          } else {
-            spawnDebris(bl.x, bl.y, bl.sz, bl.pts);
-          }
-
+        if (b.x + b.r > bl.x && b.x - b.r < bl.x + bl.w && b.y + b.r > bl.y && b.y - b.r < bl.y + bl.h) {
+          bl.alive = false; score += bl.pts; flashBigScore(); updateHUD();
+          if (b.isMini) { b.isMini = false; spawnDebrisInward(bl.x, bl.y, bl.sz, b.x, b.y); }
+          else spawnDebris(bl.x, bl.y, bl.sz);
           const ot = b.y + b.r - bl.y, ob = bl.y + bl.h - (b.y - b.r);
           const ol = b.x + b.r - bl.x, or2 = bl.x + bl.w - (b.x - b.r);
           if (Math.min(ot, ob) < Math.min(ol, or2)) b.dy *= -1; else b.dx *= -1;
           break;
         }
-      }
-    }
-
-    // Debris that flies toward the ball position (visual: absorption)
-    function spawnDebrisInward(bx, by, bsz, tx, ty) {
-      const cx = bx + bsz / 2, cy = by + bsz / 2;
-      for (let i = 0; i < 5; i++) {
-        const ox = cx + (Math.random() - 0.5) * bsz * 2;
-        const oy = cy + (Math.random() - 0.5) * bsz * 2;
-        // velocity toward ball
-        const dist = Math.sqrt((tx - ox) ** 2 + (ty - oy) ** 2) || 1;
-        const spd = 3 + Math.random() * 3;
-        debris.push({
-          x: ox, y: oy,
-          dx: ((tx - ox) / dist) * spd,
-          dy: ((ty - oy) / dist) * spd,
-          sz: 1.5 + Math.random() * 1.5,
-          pts: 0,
-          _ttl: 12 // short-lived inward burst
-        });
       }
     }
 
@@ -423,56 +516,46 @@
       flashTimeout = setTimeout(() => el.classList.remove('score-flash'), 350);
     }
 
+    const TYPE_LABELS = { adv: 'Adverb', part: 'Partikel', konj: 'Konj.', adj: 'Adjektiv', phrase: 'Phrase' };
+
+    function showWord(lvl) {
+      const w = WORDS[(lvl - 1) % WORDS.length];
+      const color = TYPE_COLORS[w.type] || '#A69B8D';
+      const typeEl = document.getElementById('wType');
+      typeEl.textContent = TYPE_LABELS[w.type] || w.type;
+      typeEl.style.color = color;
+      const display = w.word.charAt(0) + w.word.slice(1).toLowerCase()
+        .replace('ae', 'ä').replace('oe', 'ö').replace('ue', 'ü').replace('ss', 'ß');
+      document.getElementById('wWord').textContent = display;
+      document.getElementById('wordTranslation').textContent = w.tr;
+      document.getElementById('wordExample').textContent = w.ex || '';
+      const wd = document.getElementById('wordDisplay');
+      wd.classList.remove('word-pop'); void wd.offsetWidth; wd.classList.add('word-pop');
+    }
+
     function getLevelMap(lvl) {
+      const wordObj = WORDS[(lvl - 1) % WORDS.length];
       const map = [];
-      const add = (r, c) => { if (r >= 0 && r < ROWS && c >= 0 && c < COLS) map.push({ r, c }); };
-      if (lvl === 1) {
-        buildHISet().forEach(key => { const [r, c] = key.split(',').map(Number); add(r, c); });
-      } else if (lvl === 2) {
-        for (let r = 0; r < ROWS; r++) {
-          for (let dc = -3; dc <= 3; dc++) {
-            const c = Math.round(r * (COLS - 1) / (ROWS - 1)) + dc;
-            if (c >= 0 && c < COLS && Math.random() < 0.85) add(r, c);
-          }
-          for (let c = 0; c < COLS; c++) if (Math.random() < 0.1) add(r, c);
-        }
-      } else {
-        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-          const hole = (Math.abs(c - 10) < 3 && Math.abs(r - 6) < 3) ||
-            (Math.abs(c - 27) < 3 && Math.abs(r - 4) < 3) ||
-            (Math.abs(c - 44) < 3 && Math.abs(r - 8) < 3);
-          if (!hole && Math.random() < 0.80) add(r, c);
-        }
-      }
+      buildWordSet(wordObj).forEach(key => { const [r, c] = key.split(',').map(Number); if (r >= 0 && r < ROWS && c >= 0 && c < COLS) map.push({ r, c }); });
       return map;
     }
 
     function initGame() {
-      score = 0; lives = 3; level = 1;
-      gameOver = false; won = false; debris = [];
+      score = 0; lives = 3; level = 1; gameOver = false; won = false; debris = [];
       document.getElementById('message').textContent = '';
       document.getElementById('restartBtn').style.display = 'none';
       document.getElementById('f-status').textContent = 'ACTIVE';
-      initLevel(); updateHUD();
+      showWord(1); initLevel(); updateHUD();
     }
 
     function initLevel() {
       paddle = { x: W / 2 - 40, y: H - 18, w: 80, h: 5 };
-      const spd = 3.2 + level * 0.5;
-      balls = [{
-        x: W / 2, y: H - 50, r: 4,
-        dx: (Math.random() > 0.5 ? 1 : -1) * spd,
-        dy: -spd, isMini: false, trail: []
-      }];
+      const spd = 3.0 + Math.min(level, 40) * 0.10;
+      balls = [{ x: W / 2, y: H - 50, r: 4, dx: (Math.random() > 0.5 ? 1 : -1) * spd, dy: -spd, isMini: false, trail: [] }];
       blocks = []; debris = [];
       const alive = new Set(getLevelMap(level).map(({ r, c }) => r + ',' + c));
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        blocks.push({
-          x: OX + c * (BSZ + BGAP), y: OY + r * (BSZ + BGAP),
-          sz: BSZ, w: BSZ, h: BSZ,
-          alive: alive.has(r + ',' + c),
-          pts: (ROWS - r) * 4
-        });
+        blocks.push({ x: OX + c * (BSZ + BGAP), y: OY + r * (BSZ + BGAP), sz: BSZ, w: BSZ, h: BSZ, alive: alive.has(r + ',' + c), pts: (ROWS - r) * 4 });
       }
     }
 
@@ -490,7 +573,8 @@
     function drawBg() { ctx.fillStyle = '#F2EFE8'; ctx.fillRect(0, 0, W, H); }
 
     function drawBlocks() {
-      ctx.fillStyle = '#3a3530';
+      const w = WORDS[(level - 1) % WORDS.length];
+      ctx.fillStyle = TYPE_COLORS[w.type] || '#3a3530';
       for (const b of blocks) if (b.alive) ctx.fillRect(b.x, b.y, b.sz, b.sz);
     }
 
@@ -505,25 +589,30 @@
       for (const b of balls) {
         for (let i = 0; i < b.trail.length; i++) {
           const prog = i / b.trail.length;
-          ctx.beginPath();
-          ctx.arc(Math.round(b.trail[i].x), Math.round(b.trail[i].y), b.r * prog * 0.65, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(166,155,141,${prog * 0.3})`;
-          ctx.fill();
+          ctx.beginPath(); ctx.arc(Math.round(b.trail[i].x), Math.round(b.trail[i].y), b.r * prog * 0.65, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(166,155,141,${prog * 0.3})`; ctx.fill();
         }
-        ctx.beginPath();
-        ctx.arc(Math.round(b.x), Math.round(b.y), b.r, 0, Math.PI * 2);
-        // mini = warm grey, full = dark
-        ctx.fillStyle = b.isMini ? '#A69B8D' : '#3a3530';
-        ctx.fill();
-        // ring on mini to distinguish
+        ctx.beginPath(); ctx.arc(Math.round(b.x), Math.round(b.y), b.r, 0, Math.PI * 2);
+        ctx.fillStyle = b.isMini ? '#A69B8D' : '#3a3530'; ctx.fill();
         if (b.isMini) {
-          ctx.beginPath();
-          ctx.arc(Math.round(b.x), Math.round(b.y), b.r + 1.5, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(58,53,48,0.4)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
+          ctx.beginPath(); ctx.arc(Math.round(b.x), Math.round(b.y), b.r + 1.5, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(58,53,48,0.35)'; ctx.lineWidth = 1; ctx.stroke();
         }
       }
+    }
+
+    function drawDebris() {
+      for (const d of debris) {
+        if (d._ttl !== undefined) {
+          ctx.globalAlpha = d._ttl / 12; ctx.fillStyle = '#3a3530';
+          ctx.fillRect(Math.round(d.x - d.sz / 2), Math.round(d.y - d.sz / 2), Math.ceil(d.sz), Math.ceil(d.sz));
+          continue;
+        }
+        const fade = d.y > H - 30 ? Math.max(0, 1 - (d.y - (H - 30)) / 35) : 1;
+        ctx.globalAlpha = fade; ctx.fillStyle = '#3a3530';
+        ctx.fillRect(Math.round(d.x - d.sz / 2), Math.round(d.y - d.sz / 2), Math.ceil(d.sz), Math.ceil(d.sz));
+      }
+      ctx.globalAlpha = 1;
     }
 
     function movePaddle() {
@@ -534,40 +623,24 @@
 
     function gameLoop() {
       drawBg();
-
       if (!gameOver && !won) {
         movePaddle();
         for (const b of balls) updateBall(b);
-
-        // update debris (with _ttl support for inward burst)
         for (let i = debris.length - 1; i >= 0; i--) {
           const d = debris[i];
           if (d._ttl !== undefined) {
-            d._ttl--;
-            if (d._ttl <= 0) { debris.splice(i, 1); continue; }
-            d.x += d.dx; d.y += d.dy;
-            d.dx *= 0.85; d.dy *= 0.85;
-            continue;
+            d._ttl--; if (d._ttl <= 0) { debris.splice(i, 1); continue; }
+            d.x += d.dx; d.y += d.dy; d.dx *= 0.85; d.dy *= 0.85; continue;
           }
-          // normal debris
-          d.dy += GRAVITY;
-          d.x += d.dx; d.y += d.dy;
+          d.dy += GRAVITY; d.x += d.dx; d.y += d.dy;
           if (d.x < 0) { d.x = 0; d.dx = Math.abs(d.dx) * 0.5; }
           if (d.x > W) { d.x = W; d.dx = -Math.abs(d.dx) * 0.5; }
-          if (d.dy > 0 &&
-            d.x > paddle.x && d.x < paddle.x + paddle.w &&
-            d.y + d.sz / 2 >= paddle.y && d.y - d.sz / 2 <= paddle.y + paddle.h + 4) {
-            debrisToMiniball(d);
-            debris.splice(i, 1);
-            continue;
+          if (d.dy > 0 && d.x > paddle.x && d.x < paddle.x + paddle.w && d.y + d.sz / 2 >= paddle.y && d.y - d.sz / 2 <= paddle.y + paddle.h + 4) {
+            debrisToMiniball(d); debris.splice(i, 1); continue;
           }
           if (d.y > H + 30) debris.splice(i, 1);
         }
-
-        // Remove balls that fell below canvas
         balls = balls.filter(b => b.y - b.r <= H);
-
-        // All balls gone → lose life
         if (balls.length === 0) {
           lives--; updateHUD();
           if (lives <= 0) {
@@ -576,42 +649,30 @@
             document.getElementById('f-status').textContent = 'FAILED';
             document.getElementById('restartBtn').style.display = 'inline-block';
           } else {
-            const spd = 3.2 + level * 0.5;
-            balls = [{
-              x: W / 2, y: H - 50, r: 4,
-              dx: (Math.random() > 0.5 ? 1 : -1) * spd, dy: -spd,
-              isMini: false, trail: []
-            }];
-            paddle.x = W / 2 - paddle.w / 2;
-            debris = [];
+            const spd = 3.0 + Math.min(level, 40) * 0.10;
+            balls = [{ x: W / 2, y: H - 50, r: 4, dx: (Math.random() > 0.5 ? 1 : -1) * spd, dy: -spd, isMini: false, trail: [] }];
+            paddle.x = W / 2 - paddle.w / 2; debris = [];
           }
         }
-
-        // Level clear
         if (!gameOver && blocks.every(b => !b.alive) && debris.length === 0) {
           level++;
-          if (level > 3) {
+          if (level > WORDS.length) {
             won = true; saveBest(score);
-            document.getElementById('message').textContent = 'VICTORY — ' + score + ' PTS';
+            document.getElementById('message').textContent = 'ALLE WORTER — ' + score + ' PTS';
             document.getElementById('f-status').textContent = 'COMPLETE';
             document.getElementById('restartBtn').style.display = 'inline-block';
           } else {
-            document.getElementById('message').textContent = 'LEVEL ' + level + ' LOADED';
-            setTimeout(() => { document.getElementById('message').textContent = ''; }, 1800);
+            showWord(level);
+            const w = WORDS[(level - 1) % WORDS.length];
+            document.getElementById('message').textContent = 'LVL ' + level + ' — ' + w.word;
+            setTimeout(() => { document.getElementById('message').textContent = ''; }, 2200);
             initLevel(); updateHUD();
           }
         }
       }
-
-      drawBlocks();
-      drawDebris();
-      drawPaddle();
-      drawBalls();
-
-      ctx.strokeStyle = 'rgba(166,155,141,0.3)';
-      ctx.lineWidth = 1; ctx.setLineDash([]);
+      drawBlocks(); drawDebris(); drawPaddle(); drawBalls();
+      ctx.strokeStyle = 'rgba(166,155,141,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(0, H - 2); ctx.lineTo(W, H - 2); ctx.stroke();
-
       if (!gameOver && !won) animId = requestAnimationFrame(gameLoop);
     }
 
@@ -619,7 +680,6 @@
 
     document.addEventListener('keydown', e => { keys[e.key] = true; if (e.key.startsWith('Arrow')) e.preventDefault(); });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
-
     canvas.addEventListener('mousemove', e => {
       const rect = canvas.getBoundingClientRect();
       paddle.x = (e.clientX - rect.left) * (W / rect.width) - paddle.w / 2;
@@ -634,8 +694,7 @@
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
     canvas.addEventListener('touchmove', handleTouch, { passive: false });
 
-    initGame();
-    gameLoop();
+    initGame(); gameLoop();
   </script>
 </body>
 
