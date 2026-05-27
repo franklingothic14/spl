@@ -15,6 +15,9 @@
       <h2>II &nbsp; Pause</h2>
       <button class="pBtn accent" onclick="resumeGame()">▶ &nbsp; Resume</button>
       <button class="pBtn" onclick="openMatch()">⇄ &nbsp; Skip level — Match the words</button>
+      <button class="pBtn"
+        onclick="document.getElementById('pauseOverlay').classList.remove('open'); showLeaderboard()">🏆 &nbsp;
+        Leaderboard</button>
       <button class="pBtn" onclick="restartGame()">↺ &nbsp; Restart game</button>
     </div>
   </div>
@@ -29,6 +32,15 @@
       </div>
       <div id="matchResult"></div>
       <button id="matchClose" style="display:none" onclick="closeMatch()">Continue →</button>
+    </div>
+  </div>
+
+  <div id="lbOverlay">
+    <div id="lbBox">
+      <h2>🏆 &nbsp; Leaderboard</h2>
+      <div id="lbList"></div>
+      <button class="pBtn accent" onclick="closeLeaderboard(); restartGame()">↺ &nbsp; Play again</button>
+      <button class="pBtn" onclick="closeLeaderboard()">✕ &nbsp; Close</button>
     </div>
   </div>
 
@@ -58,9 +70,8 @@
 
   <div id="message"></div>
   <div id="btnWrap"><button id="restartBtn" onclick="restartGame()">› RESTART</button></div>
-  <div id="hint">← → mouse · SPACE = pause · ESC = menu</div>
+  <div id="hint">← → mouse · SPACE = pause · клік = магніт/пауза · ESC = menu</div>
 
-  <!-- order matters: constants first, then modules, game last -->
   <script src="js/constants.js"></script>
   <script src="js/words.js"></script>
   <script src="js/font.js"></script>

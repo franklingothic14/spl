@@ -376,3 +376,74 @@ body {
     cursor: pointer;
     text-transform: uppercase;
 }
+
+/* ── Leaderboard overlay ── */
+#lbOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(58, 53, 48, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+#lbOverlay.open {
+    display: flex;
+}
+
+#lbBox {
+    background: #F2EFE8;
+    border-radius: 24px;
+    padding: 24px 28px 20px;
+    width: min(360px, 92vw);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+}
+
+#lbBox h2 {
+    font-size: 0.65rem;
+    letter-spacing: 3px;
+    color: #A69B8D;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+}
+
+.lbRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    margin-bottom: 5px;
+    background: #EAE6DF;
+    font-size: 0.75rem;
+}
+
+.lbRow.lbFirst {
+    background: #e8f0d8;
+}
+
+.lbRank {
+    width: 28px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.lbScore {
+    flex: 1;
+    font-weight: 700;
+    color: #3a3530;
+    letter-spacing: 0.05em;
+}
+
+.lbDate {
+    font-size: 0.65rem;
+    color: #C4B9AD;
+}
+
+.lbEmpty {
+    font-size: 0.72rem;
+    color: #C4B9AD;
+    text-align: center;
+    padding: 20px 0;
+}

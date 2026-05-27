@@ -10,7 +10,7 @@ function currentWord() {
 function initGame() {
     score = 0; lives = 3; level = 1;
     gameOver = false; won = false; paused = false;
-    resetBonuses();                              // ← замінено
+    resetBonuses();
     nextBonusAt = performance.now() + 8000;
     levelOrder = shuffle(WORDS.map((_, i) => i));
     document.getElementById('message').textContent = '';
@@ -20,11 +20,12 @@ function initGame() {
 }
 
 function initLevel() {
-    paddle = { x: W / 2 - 40, y: PADDLE_Y, w: PADDLE_NORMAL_W, h: 6 };  // ← PADDLE_NORMAL_W
+    resetBonuses();
+    paddle = { x: W / 2 - PADDLE_NORMAL_W / 2, y: PADDLE_Y, w: PADDLE_NORMAL_W, h: 6 };
     balls = [newBall()];
     debrisParticles = [];
     blocks = [];
-    resetBonuses();                              // ← замінено
+
     const alive = buildWordSet(currentWord());
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -41,11 +42,13 @@ function initLevel() {
 function advanceLevel() {
     level++;
     if (level > WORDS.length) {
-        won = true; saveBest(score);
+        won = true; saveBest(score); saveToLeaderboard(score);
         showMsg('ALLE WÖRTER — ' + score + ' PTS', 99999);
         document.getElementById('f-status').textContent = 'COMPLETE';
         document.getElementById('restartBtn').style.display = 'inline-block';
-        renderFrame(); return;
+        renderFrame();
+        setTimeout(showLeaderboard, 1200);
+        return;
     }
     showWord();
     showMsg('LVL ' + level + ' — ' + currentWord().word, 2000);
@@ -75,11 +78,13 @@ function gameLoop() {
     if (balls.length === 0) {
         lives--; updateHUD();
         if (lives <= 0) {
-            gameOver = true; saveBest(score);
+            gameOver = true; saveBest(score); saveToLeaderboard(score);
             showMsg('GAME OVER', 99999);
             document.getElementById('f-status').textContent = 'FAILED';
             document.getElementById('restartBtn').style.display = 'inline-block';
-            renderFrame(); return;
+            renderFrame();
+            setTimeout(showLeaderboard, 1200);
+            return;
         }
         balls = [newBall()];
         paddle.x = W / 2 - paddle.w / 2;
@@ -94,6 +99,7 @@ function gameLoop() {
     animId = requestAnimationFrame(gameLoop);
 }
 
+// ── Pause / resume ─────────────────────────────────────────────
 function openPauseMenu() {
     if (gameOver || won) return;
     paused = true;
@@ -115,24 +121,35 @@ function togglePause() {
 function restartGame() {
     document.getElementById('pauseOverlay').classList.remove('open');
     document.getElementById('matchOverlay').classList.remove('open');
+    document.getElementById('lbOverlay').classList.remove('open');
     cancelAnimationFrame(animId);
     initGame();
     animId = requestAnimationFrame(gameLoop);
 }
 
+// ── Input ──────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     keys[e.key] = true;
     if (e.key.startsWith('Arrow')) e.preventDefault();
-    if (e.key === ' ') { e.preventDefault(); togglePause(); }
+    if (e.key === ' ') {
+        e.preventDefault();
+        togglePause();
+    }
     if (e.key === 'Escape') {
-        if (document.getElementById('matchOverlay').classList.contains('open')) closeMatch();
-        else if (document.getElementById('pauseOverlay').classList.contains('open')) resumeGame();
-        else openPauseMenu();
+        if (document.getElementById('lbOverlay').classList.contains('open'))
+            closeLeaderboard();
+        else if (document.getElementById('matchOverlay').classList.contains('open'))
+            closeMatch();
+        else if (document.getElementById('pauseOverlay').classList.contains('open'))
+            resumeGame();
+        else
+            openPauseMenu();
     }
 });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
-canvas.addEventListener('click', () => togglePause());
+
+canvas.addEventListener('click', () => { togglePause(); });
 canvas.addEventListener('mousemove', e => {
     if (paused) return;
     const r = canvas.getBoundingClientRect();
@@ -141,7 +158,9 @@ canvas.addEventListener('mousemove', e => {
 });
 
 let touchMoved = false;
-canvas.addEventListener('touchstart', e => { touchMoved = false; e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchstart', e => {
+    touchMoved = false; e.preventDefault();
+}, { passive: false });
 canvas.addEventListener('touchmove', e => {
     touchMoved = true; e.preventDefault();
     if (paused) return;
@@ -154,5 +173,6 @@ canvas.addEventListener('touchend', e => {
     e.preventDefault();
 }, { passive: false });
 
+// ── Boot ───────────────────────────────────────────────────────
 initGame();
 animId = requestAnimationFrame(gameLoop);
